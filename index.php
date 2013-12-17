@@ -1,10 +1,10 @@
 <?php
 /*
 Plugin Name: Exclude From Search
-Plugin URI: http://pateason.com/development/wordpress-exclude-search
+Plugin URI: http://pateason.com
 Description: Exclude specified pages, posts, and other post types search queries.
 Author: Pat Eason
-Version: 1.1
+Version: 1.11
 Author URI: http://pateason.com
 */
 
@@ -13,17 +13,21 @@ Author URI: http://pateason.com
 	//Meta Box Content
 	function searchMetaBoxCont( $post ) {
 	  wp_nonce_field( 'searchMetaBoxCont', 'searchMetaBox_nonce' );
+
 	  $value = get_post_meta( $post->ID, 'excludeFromSearch', true );
+
 	  echo '<label for="excludeSearch">Exclude from Searches?</label>';
 	  echo '<input type="checkbox" name="exclude_search"';
 	  	if($value){
 		  	echo 'checked="checked" ';
 	  	}
 	  echo '>';
+
 	}
 
 	//Render Meta Box
 	function searchMetaBox() {
+		//Get Posttypes
 		$args = array(
 		   'public'   => true,
 		);
@@ -60,6 +64,7 @@ function excludecolumn_cont( $column_name, $post_id ) {
 	            echo 'Excluded';
         	}
             break;
+
         default:
     }
 }
@@ -67,28 +72,45 @@ add_filter( 'manage_posts_custom_column', 'excludeColumn_cont', 10, 2 );
 
 // ----- Save to Site Meta
 	function searchMeta_save( $post_id ) {
+	  // Check if our nonce is set.
 	  if ( ! isset( $_POST['searchMetaBox_nonce'] ) )
 	    return $post_id;
+
 	  $nonce = $_POST['searchMetaBox_nonce'];
+
+	  // Verify that the nonce is valid.
 	  if ( ! wp_verify_nonce( $nonce, 'searchMetaBoxCont' ) )
 	      return $post_id;
+
+	  // If this is an autosave, our form has not been submitted, so we don't want to do anything.
 	  if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE )
 	      return $post_id;
+
+	  // Check the user's permissions.
 	  if ( 'page' == $_POST['post_type'] ) {
 
 	    if ( ! current_user_can( 'edit_page', $post_id ) )
 	        return $post_id;
+
 	  } else {
 
 	    if ( ! current_user_can( 'edit_post', $post_id ) )
 	        return $post_id;
 	  }
+
+	  /* OK, its safe for us to save the data now. */
+
+	  // Get user input.
 	  if(isset($_POST['exclude_search'])){
 		  $searchKey = true;
+		  // Update the meta field in the database.
+		  update_post_meta( $post_id, 'excludeFromSearch', $searchKey );
 	  }else{
-		  $searchKey = false;
+		  // Delete the meta field in the database.
+		  delete_post_meta( $post_id, 'excludeFromSearch' );
 	  }
-	  update_post_meta( $post_id, 'excludeFromSearch', $searchKey );
+
+
 	}
 	add_action( 'save_post', 'searchMeta_save' );
 
@@ -100,7 +122,7 @@ function exclude_search( $query ) {
         	array(
         		'key' => 'excludeFromSearch',
         		'value' => 1,
-        		'compare' => '!='
+        		'compare' => 'NOT EXISTS'
         	)
         ));
     }
